@@ -59,9 +59,7 @@ Vite `index.html`, which loads `/src/main.ts` and shows a blank page (MIME error
 
 Use either:
 
-1. **Branch deploy (simple):** Settings → Pages → Deploy from a branch →
+1. **Branch deploy (recommended):** Settings → Pages → Deploy from a branch →
    `main` / **`/docs`** → Save
-2. **GitHub Actions:** Settings → Pages → Source → **GitHub Actions** → Save,
-   then switch the workflow back to `deploy-pages` if you prefer that path
 
 After changing the setting, wait a minute and hard-refresh the site.
