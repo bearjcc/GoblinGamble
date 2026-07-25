@@ -140,50 +140,92 @@ function renderTitle(): HTMLElement {
   return screen
 }
 
+/** Compact score labels for handheld density. Full names stay in aria-label. */
+const SHORT_UPPER: Record<(typeof UPPER_SECTION)[number], string> = {
+  ones: '1s',
+  twos: '2s',
+  threes: '3s',
+  fours: '4s',
+  fives: '5s',
+  sixes: '6s',
+  sevens: '7s',
+  eights: '8s',
+  nines: '9s',
+  tens: '10s',
+}
+
+const SHORT_LOWER: Record<(typeof LOWER_SECTION)[number], string> = {
+  magicMissile: 'Missile',
+  partyOfFour: 'Party4',
+  fireball: 'Fireball',
+  balancedParty: 'Balance',
+  initiative: 'Init',
+  dungeonCrawl: 'Crawl',
+  polymorph: 'Poly',
+  minMax: 'MinMax',
+  success: 'Success',
+  criticalSuccess: 'Crit+',
+  failure: 'Fail',
+  criticalFailure: 'Crit-',
+  twinnedSpell: 'Twin',
+  bagOfHolding: 'Bag',
+}
+
 function renderPlay(): HTMLElement {
   const state = model.state!
   const race = raceDef(state.race)
   const shell = el('div', 'screen play-shell')
 
-  const top = el('div', 'play-top')
-  const heading = el('div', 'play-heading')
-  heading.append(el('h1', 'play-brand', 'Goblin Gamble'))
-  const quit = button('Quit', 'btn btn-ghost btn-quit', () => {
+  shell.append(renderStatusBar(state, race.name))
+  shell.append(renderScorecard(state))
+  shell.append(renderDock(state))
+  return shell
+}
+
+function renderStatusBar(state: GameState, raceName: string): HTMLElement {
+  const bar = el('header', 'status-bar')
+  const left = el('div', 'status-left')
+  left.append(
+    el('span', 'status-brand', 'Goblin Gamble'),
+    el('span', 'status-sep', '·'),
+    el('span', 'status-race', raceName),
+  )
+
+  const mid = el('div', 'status-mid')
+  mid.append(
+    el('span', 'status-item', `T${Math.min(state.turn, 24)}/24`),
+    el('span', 'status-item', `Scr ${totalScore(state)}`),
+  )
+
+  const rolls = el('span', 'status-rolls')
+  rolls.setAttribute('aria-label', `${state.rollsRemaining} rolls left`)
+  const max = 3
+  for (let i = 0; i < max; i++) {
+    const pip = el('span', i < state.rollsRemaining ? 'roll-pip on' : 'roll-pip')
+    pip.textContent = '●'
+    rolls.append(pip)
+  }
+  mid.append(rolls)
+
+  if (state.luckyRerollsLeft > 0) {
+    mid.append(el('span', 'status-item status-lucky', `L${state.luckyRerollsLeft}`))
+  }
+
+  const quit = button('×', 'btn-icon status-quit', () => {
     model.screen = 'title'
     model.state = null
     model.luckyPick = false
     render()
   })
-  heading.append(quit)
-  top.append(heading)
+  quit.setAttribute('aria-label', 'Quit')
+  quit.title = 'Quit'
 
-  const meta = el('div', 'meta-row')
-  meta.append(
-    chip(`${race.name}`),
-    chip(`Turn ${Math.min(state.turn, 24)} / 24`),
-    chip(`Rolls left: ${state.rollsRemaining}`),
-    chip(`Score: ${totalScore(state)}`),
-  )
-  if (state.luckyRerollsLeft > 0) meta.append(chip(`Lucky: ${state.luckyRerollsLeft}`))
-  top.append(meta)
-  shell.append(top)
-
-  const grid = el('div', 'play-grid')
-  const scroll = el('div', 'play-scroll')
-  scroll.append(renderScorecard(state))
-
-  const boon = el('p', 'tagline play-boon')
-  boon.textContent = `Boon: ${race.boon} · Inspiration at ${inspirationThresholdFor(state.race)} upper`
-  scroll.append(boon)
-
-  grid.append(scroll, renderDock(state))
-  shell.append(grid)
-  return shell
+  bar.append(left, mid, quit)
+  return bar
 }
 
 function renderDock(state: GameState): HTMLElement {
   const dock = el('section', 'play-dock')
-  const tray = el('div', 'tray')
   const dice = el('div', 'dice-grid')
 
   for (let i = 0; i < DICE_COUNT; i++) {
@@ -194,7 +236,8 @@ function renderDock(state: GameState): HTMLElement {
     if (state.held[i]) btn.classList.add('held')
     if (model.luckyPick) btn.classList.add('lucky-target')
     btn.dataset.sides = String(sides)
-    btn.innerHTML = `<span class="face">${state.hasRolled ? state.dice[i] : '?'}</span><span class="sides">d${sides}</span>`
+    const face = state.hasRolled ? String(state.dice[i]) : '?'
+    btn.innerHTML = `<span class="face">${face}</span><span class="die-mark" aria-hidden="true">${sides}</span>`
     btn.disabled = !state.hasRolled || state.gameOver
     btn.setAttribute(
       'aria-label',
@@ -203,15 +246,14 @@ function renderDock(state: GameState): HTMLElement {
     btn.addEventListener('click', () => onDieClick(i))
     dice.append(btn)
   }
-  tray.append(dice)
+  dock.append(dice)
 
   const hint = el('p', 'hint')
-  if (!state.hasRolled) hint.textContent = 'Smash Roll to tumble the whole party.'
-  else if (model.luckyPick) hint.textContent = 'Pick one die for your Lucky Reroll.'
-  else if (state.rollsRemaining === 0) hint.textContent = 'No rolls left — score a box.'
-  else hint.textContent = 'Hold keepers, roll again, or score now.'
-
-  tray.append(hint)
+  if (!state.hasRolled) hint.textContent = 'Roll to start.'
+  else if (model.luckyPick) hint.textContent = 'Pick a die for Lucky.'
+  else if (state.rollsRemaining === 0) hint.textContent = 'Score a box.'
+  else hint.textContent = 'Hold · roll · or score'
+  dock.append(hint)
 
   const controls = el('div', 'controls')
   const canRoll = !state.gameOver && state.rollsRemaining > 0
@@ -225,19 +267,19 @@ function renderDock(state: GameState): HTMLElement {
   })
   rollBtn.disabled = !canRoll
 
-  const clearHolds = button('Clear holds', 'btn btn-secondary', () => {
+  const secondary = el('div', 'controls-secondary')
+  const clearHolds = button('Clear holds', 'btn btn-ghost btn-secondary-action', () => {
     if (!model.state?.hasRolled || model.state.rollsRemaining <= 0) return
     model.state = { ...model.state, held: Array(DICE_COUNT).fill(false) }
     render()
   })
   clearHolds.disabled = !state.hasRolled || state.rollsRemaining <= 0 || !state.held.some(Boolean)
-
-  controls.append(rollBtn, clearHolds)
+  secondary.append(clearHolds)
 
   if (raceDef(state.race).luckyRerollsPerTurn > 0) {
     const lucky = button(
-      model.luckyPick ? 'Cancel lucky' : 'Lucky Reroll',
-      'btn',
+      model.luckyPick ? 'Cancel lucky' : 'Lucky',
+      'btn btn-ghost btn-secondary-action',
       () => {
         if (!model.state || model.state.luckyRerollsLeft <= 0) return
         model.luckyPick = !model.luckyPick
@@ -245,69 +287,68 @@ function renderDock(state: GameState): HTMLElement {
       },
     )
     lucky.disabled = !state.hasRolled || state.luckyRerollsLeft <= 0 || state.gameOver
-    controls.append(lucky)
+    secondary.append(lucky)
   }
 
-  dock.append(tray, controls)
+  controls.append(rollBtn, secondary)
+  dock.append(controls)
   return dock
 }
 
 function renderScorecard(state: GameState): HTMLElement {
-  const panel = el('section', 'panel play-scorecard')
-  const table = document.createElement('table')
-  table.className = 'scorecard'
-
+  const panel = el('section', 'play-scorecard')
   const open = new Set(openCategories(state))
   const canScore = state.hasRolled && !state.gameOver
 
-  table.append(sectionHeader('Upper section'))
+  const grid = el('div', 'score-grid')
+  const upperCol = el('div', 'score-col score-upper')
+  const lowerCol = el('div', 'score-col score-lower')
+
+  upperCol.append(el('div', 'score-col-head', 'Upper'))
   for (const cat of UPPER_SECTION) {
-    table.append(categoryRow(state, cat, UPPER_LABELS[cat], open.has(cat), canScore))
+    upperCol.append(
+      categoryCell(state, cat, SHORT_UPPER[cat], UPPER_LABELS[cat], open.has(cat), canScore),
+    )
   }
 
   const up = upperTotal(state.scorecard)
   const insp = inspirationBonus(state.scorecard, state.race)
   const threshold = inspirationThresholdFor(state.race)
-  table.append(totalRow(`Upper (${up}/${threshold})`, String(up)))
-  table.append(totalRow('Inspiration', insp > 0 ? `+${insp}` : `need ${threshold}`))
+  upperCol.append(metaCell(`Up ${up}/${threshold}`, String(up)))
+  upperCol.append(metaCell('Insp', insp > 0 ? `+${insp}` : `≥${threshold}`))
+  // Pad to match lower column row count so row heights stay uniform.
+  upperCol.append(el('div', 'score-spacer'), el('div', 'score-spacer'))
 
-  table.append(sectionHeader('Lower section'))
+  lowerCol.append(el('div', 'score-col-head', 'Lower'))
   for (const cat of LOWER_SECTION) {
-    table.append(categoryRow(state, cat, LOWER_LABELS[cat], open.has(cat), canScore))
+    lowerCol.append(
+      categoryCell(state, cat, SHORT_LOWER[cat], LOWER_LABELS[cat], open.has(cat), canScore),
+    )
   }
 
-  table.append(totalRow('Grand total', String(totalScore(state))))
-  panel.append(table)
+  grid.append(upperCol, lowerCol)
+  panel.append(grid)
+
+  const footer = el('div', 'score-footer')
+  footer.append(el('span', '', 'Total'), el('strong', '', String(totalScore(state))))
+  panel.append(footer)
   return panel
 }
 
-function sectionHeader(label: string): HTMLTableRowElement {
-  const tr = document.createElement('tr')
-  const th = document.createElement('th')
-  th.colSpan = 1
-  th.textContent = label
-  tr.append(th)
-  return tr
+function metaCell(label: string, value: string): HTMLElement {
+  const row = el('div', 'score-meta')
+  row.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`
+  return row
 }
 
-function totalRow(label: string, value: string): HTMLTableRowElement {
-  const tr = document.createElement('tr')
-  tr.className = 'totals'
-  const td = document.createElement('td')
-  td.innerHTML = `<span>${escapeHtml(label)}</span><strong style="float:right">${escapeHtml(value)}</strong>`
-  tr.append(td)
-  return tr
-}
-
-function categoryRow(
+function categoryCell(
   state: GameState,
   cat: Category,
-  label: string,
+  shortLabel: string,
+  fullLabel: string,
   isOpen: boolean,
   canScore: boolean,
-): HTMLTableRowElement {
-  const tr = document.createElement('tr')
-  const td = document.createElement('td')
+): HTMLElement {
   const btn = document.createElement('button')
   btn.type = 'button'
   btn.className = 'cat'
@@ -322,12 +363,12 @@ function categoryRow(
         ? String(rawCategoryScore(state.dice, cat, state.race))
         : '—'
 
-  btn.innerHTML = `<span>${escapeHtml(label)}</span><span class="preview ${isOpen && state.hasRolled ? 'open' : ''}">${escapeHtml(preview)}</span>`
+  btn.innerHTML = `<span class="cat-label">${escapeHtml(shortLabel)}</span><span class="preview ${isOpen && state.hasRolled ? 'open' : ''}">${escapeHtml(preview)}</span>`
+  btn.setAttribute('aria-label', `${fullLabel}: ${preview}`)
+  btn.title = fullLabel
   btn.disabled = !canScore || !isOpen
   btn.addEventListener('click', () => onScore(cat))
-  td.append(btn)
-  tr.append(td)
-  return tr
+  return btn
 }
 
 function renderResults(): HTMLElement {
@@ -420,10 +461,6 @@ function animateDie(index: number): void {
     void (node as HTMLElement).offsetWidth
     node.classList.add('rolling')
   })
-}
-
-function chip(text: string): HTMLElement {
-  return el('span', 'meta-chip', text)
 }
 
 function button(label: string, className: string, onClick: () => void): HTMLButtonElement {
