@@ -67,6 +67,7 @@ export function startApp(): void {
 
 function render(): void {
   const el = root()
+  el.dataset.screen = model.screen
   if (model.screen === 'title') el.replaceChildren(renderTitle())
   else if (model.screen === 'play') el.replaceChildren(renderPlay())
   else el.replaceChildren(renderResults())
@@ -142,10 +143,20 @@ function renderTitle(): HTMLElement {
 function renderPlay(): HTMLElement {
   const state = model.state!
   const race = raceDef(state.race)
-  const screen = el('div', 'screen')
+  const shell = el('div', 'screen play-shell')
 
   const top = el('div', 'play-top')
-  top.append(el('h1', 'play-brand', 'Goblin Gamble'))
+  const heading = el('div', 'play-heading')
+  heading.append(el('h1', 'play-brand', 'Goblin Gamble'))
+  const quit = button('Quit', 'btn btn-ghost btn-quit', () => {
+    model.screen = 'title'
+    model.state = null
+    model.luckyPick = false
+    render()
+  })
+  heading.append(quit)
+  top.append(heading)
+
   const meta = el('div', 'meta-row')
   meta.append(
     chip(`${race.name}`),
@@ -155,22 +166,23 @@ function renderPlay(): HTMLElement {
   )
   if (state.luckyRerollsLeft > 0) meta.append(chip(`Lucky: ${state.luckyRerollsLeft}`))
   top.append(meta)
-  screen.append(top)
+  shell.append(top)
 
   const grid = el('div', 'play-grid')
-  grid.append(renderTray(state), renderScorecard(state))
-  screen.append(grid)
+  const scroll = el('div', 'play-scroll')
+  scroll.append(renderScorecard(state))
 
-  const boon = el('p', 'tagline')
-  boon.style.marginTop = '1rem'
+  const boon = el('p', 'tagline play-boon')
   boon.textContent = `Boon: ${race.boon} · Inspiration at ${inspirationThresholdFor(state.race)} upper`
-  screen.append(boon)
+  scroll.append(boon)
 
-  return screen
+  grid.append(scroll, renderDock(state))
+  shell.append(grid)
+  return shell
 }
 
-function renderTray(state: GameState): HTMLElement {
-  const panel = el('section', 'panel')
+function renderDock(state: GameState): HTMLElement {
+  const dock = el('section', 'play-dock')
   const tray = el('div', 'tray')
   const dice = el('div', 'dice-grid')
 
@@ -203,7 +215,7 @@ function renderTray(state: GameState): HTMLElement {
 
   const controls = el('div', 'controls')
   const canRoll = !state.gameOver && state.rollsRemaining > 0
-  const rollBtn = button(state.hasRolled ? 'Roll again' : 'Roll', 'btn btn-primary', () => {
+  const rollBtn = button(state.hasRolled ? 'Roll again' : 'Roll', 'btn btn-primary btn-roll', () => {
     if (!model.state) return
     model.state = rollDice(model.state, model.rng)
     model.luckyPick = false
@@ -236,20 +248,12 @@ function renderTray(state: GameState): HTMLElement {
     controls.append(lucky)
   }
 
-  const quit = button('Quit to title', 'btn btn-ghost', () => {
-    model.screen = 'title'
-    model.state = null
-    model.luckyPick = false
-    render()
-  })
-  controls.append(quit)
-
-  panel.append(tray, controls)
-  return panel
+  dock.append(tray, controls)
+  return dock
 }
 
 function renderScorecard(state: GameState): HTMLElement {
-  const panel = el('section', 'panel')
+  const panel = el('section', 'panel play-scorecard')
   const table = document.createElement('table')
   table.className = 'scorecard'
 
