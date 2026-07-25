@@ -42,11 +42,24 @@ Rules engine ported from [bearjcc/yahtzee](https://github.com/bearjcc/yahtzee) G
 |---|---|
 | `npm run dev` | Local Vite server |
 | `npm test` | Vitest |
-| `npm run build` | Production build to `dist/` |
+| `npm run build` | Production build to `docs/` |
 | `npm run preview` | Preview the production build |
 
 ## GitHub Pages
 
-Pushes to `main` run `.github/workflows/pages.yml` (test → build → deploy).
+Site: `https://bearjcc.github.io/GoblinGamble/` (Vite `base` is `/GoblinGamble/`).
 
-Site base path: `/GoblinGamble/` → `https://bearjcc.github.io/GoblinGamble/`
+Production files are built into `docs/`. Pushes to `main` run
+`.github/workflows/pages.yml` (test → build → commit `docs/`).
+
+### Required Pages setting
+
+This repo must **not** use Pages from branch `main` + `/` (root). That serves the
+Vite `index.html`, which loads `/src/main.ts` and shows a blank page (MIME error).
+
+Use either:
+
+1. **Branch deploy (recommended):** Settings → Pages → Deploy from a branch →
+   `main` / **`/docs`** → Save
+
+After changing the setting, wait a minute and hard-refresh the site.
